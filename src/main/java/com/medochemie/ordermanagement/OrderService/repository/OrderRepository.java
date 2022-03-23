@@ -26,6 +26,9 @@ public interface OrderRepository extends MongoRepository<Order, String> {
     @Query(value="{ '_id' : ?0 }")
     List<Product> findProductsForOrder(String _id);
 
+    @Query(value="{ 'agent.agentName' : ?0 }")
+    List<Order> findByAgentName(String agentName);
+
     default Map<String, Object> getAllOrdersInPage(int pageNo, int pageSize, String sortBy) {
         Map<String, Object> response = new HashMap<String, Object>();
         Pageable pageable = PageRequest.of(pageNo, pageSize, Sort.Direction.valueOf(sortBy));
@@ -38,6 +41,8 @@ public interface OrderRepository extends MongoRepository<Order, String> {
 
         return response;
     };
+
+
 
 
 }

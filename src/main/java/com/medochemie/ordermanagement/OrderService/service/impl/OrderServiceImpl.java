@@ -23,6 +23,11 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public List<Order> findAllOrdersByAgentName(String agentName) {
+        return repository.findByAgentName(agentName);
+    }
+
+    @Override
     public Order createOrder(Order order) {
         return repository.save(order);
     }

@@ -30,12 +30,10 @@ public class OrderController {
 
     @Autowired
     RestTemplate restTemplate;
-
-    @Autowired
-    private OrderRepository repository;
-
     @Autowired
     OrderService orderService;
+    @Autowired
+    private OrderRepository repository;
 
     @GetMapping("/list")
     public ResponseEntity<Response> getOrders() {
@@ -122,6 +120,39 @@ public class OrderController {
 
     }
 
+
+    @GetMapping("/list/agent-name/{agentName}")
+    public ResponseEntity<Response> getOrdersForAnAgent(@PathVariable String agentName) {
+        log.info("Retrieving all orders of " + agentName);
+
+        Map<String, List<Order>> data = new HashMap<>();
+        List<Order> orders = orderService.findAllOrdersByAgentName(agentName);
+        data.put("Orders", orders);
+
+        if (orders.size() > 0) {
+            return ResponseEntity.ok(
+                    Response.builder()
+                            .timeStamp(now())
+                            .message(orders.size() + " orders of " + agentName + " are retrieved")
+                            .status(HttpStatus.OK)
+                            .statusCode(HttpStatus.OK.value())
+                            .data(data)
+                            .build()
+            );
+        } else {
+            return ResponseEntity.ok(
+                    Response.builder()
+                            .timeStamp(now())
+                            .message("No orders found for " + agentName)
+                            .status(HttpStatus.NOT_FOUND)
+                            .statusCode(HttpStatus.NOT_FOUND.value())
+                            .data(of())
+                            .build()
+            );
+        }
+
+
+    }
 
     @GetMapping("/page")
     public Map<String, Object> getAllOrdersInPage(
