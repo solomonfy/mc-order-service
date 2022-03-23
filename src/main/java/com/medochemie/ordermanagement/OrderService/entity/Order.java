@@ -2,6 +2,7 @@ package com.medochemie.ordermanagement.OrderService.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.medochemie.ordermanagement.OrderService.VO.Product;
+import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -21,8 +22,7 @@ public class Order {
     private String orderNumber;
     private Double amount;
     private String shipment;
-    private List<String> productIds;
-//    private List<Product> products;
+    private List<ProductIdsWithQuantity> productIdsWithQuantities;
 
     @JsonIgnore
     @LastModifiedDate

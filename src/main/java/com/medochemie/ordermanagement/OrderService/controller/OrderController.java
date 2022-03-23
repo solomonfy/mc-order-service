@@ -2,10 +2,11 @@ package com.medochemie.ordermanagement.OrderService.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medochemie.ordermanagement.OrderService.VO.Product;
-import com.medochemie.ordermanagement.OrderService.VO.ResponseTemplateVO;
+import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
+import com.medochemie.ordermanagement.OrderService.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -13,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.DataInput;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -29,19 +29,22 @@ public class OrderController {
     ObjectMapper mapper = new ObjectMapper();
 
     @Autowired
+    RestTemplate restTemplate;
+
+    @Autowired
     private OrderRepository repository;
 
     @Autowired
-    RestTemplate restTemplate;
+    OrderService orderService;
 
     @GetMapping("/list")
-    public ResponseEntity<Response> getOrders(){
+    public ResponseEntity<Response> getOrders() {
         log.info("Return all orders");
 
         Map<String, List<Order>> data = new HashMap<>();
-        data.put("Orders", repository.findAll());
+        data.put("Orders", orderService.findAllOrders());
 
-        try{
+        try {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -51,24 +54,23 @@ public class OrderController {
                             .data(data)
                             .build()
             );
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
     }
 
     @GetMapping("/list/{id}")
-    public ResponseEntity<Response> getOrder(@PathVariable String id){
+    public ResponseEntity<Response> getOrder(@PathVariable String id) {
         LOGGER.info("Returning an order with an id " + id);
-        try{
+        try {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
                             .status(HttpStatus.OK)
                             .statusCode(HttpStatus.OK.value())
                             .message("Returning an order with an id " + id)
-                            .data(of("order", repository.findById(id)))
+                            .data(of("order", orderService.findOrderById(id)))
                             .build()
             );
         } catch (Exception e) {
@@ -85,26 +87,26 @@ public class OrderController {
     }
 
     @GetMapping("/list/{id}/products")
-    public ResponseEntity<Response> returnCustomResponse(@PathVariable String id){
-//        ResponseTemplateVO vo = new ResponseTemplateVO();
+    public ResponseEntity<Response> getProductsForOrder(@PathVariable String id) {
 
-        log.info("Inside returnCustomResponse method of OrderController, found an order of id " + id);
+        log.info("Inside getProductsForOrder method of OrderController, found an order of id " + id);
         Optional<Order> optionalEntity = repository.findById(id);
         Order order = optionalEntity.get();
 
         List<Product> productList = new ArrayList();
-        List<String> listOfProductIds = order.getProductIds();
+        List<ProductIdsWithQuantity> listOfProductIds = order.getProductIdsWithQuantities();
 
-        Double total = 0D;
+//        Double total = 0D;
 
-        for(String productId : listOfProductIds) {
+        for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
+            String productId = productIdWithQuantity.getProductId();
             Response response = restTemplate.getForObject("http://MC-COMPANY-SERVICE/products/list/" + productId, Response.class);
             Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
-            total += product.getUnitPrice()* product.getQuantity();
+//            total += product.getUnitPrice() * productIdWithQuantity.getQuantity();
             productList.add(product);
         }
-        order.setAmount(total);
-        try{
+//        order.setAmount(total);
+        try {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -114,8 +116,7 @@ public class OrderController {
                             .data(of("products", productList))
                             .build()
             );
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
 
@@ -127,36 +128,35 @@ public class OrderController {
             @RequestParam(name = "pageNo", defaultValue = "0") int pageNo,
             @RequestParam(name = "pageSize", defaultValue = "10") int pageSize,
             @RequestParam(name = "sortBy", defaultValue = "id") String sortBy
-    ){
+    ) {
         return repository.getAllOrdersInPage(pageNo, pageSize, sortBy);
     }
 
-    @PostMapping("/createOrder")
-    public ResponseEntity<Order> createOrder(@RequestBody Order order){
+    @PostMapping("/create-order")
+    public ResponseEntity<Order> createOrder(@RequestBody Order order) {
         log.info("Adding a new order for " + order.getAgent().getAgentName());
 
         return new ResponseEntity(repository.insert(order), HttpStatus.CREATED);
     }
 
-    @PutMapping("/updateOrder/{id}")
-    public ResponseEntity<Order> updateOrder(@PathVariable("id") String id, @RequestBody Order order){
+    @PutMapping("/update-order/{id}")
+    public ResponseEntity<Order> updateOrder(@PathVariable("id") String id, @RequestBody Order order) {
         Optional<Order> foundOrder = repository.findById(id);
         LOGGER.info("Updating an order with id " + order.getId());
-        if (foundOrder.isPresent()){
+        if (foundOrder.isPresent()) {
             Order updatedOrder = foundOrder.get();
             updatedOrder.setAmount(order.getAmount());
-            updatedOrder.setProductIds(order.getProductIds());
+            updatedOrder.setProductIdsWithQuantities(order.getProductIdsWithQuantities());
             updatedOrder.setShipment(order.getShipment());
             updatedOrder.setCreatedOn(order.getCreatedOn());
             return new ResponseEntity(repository.save(order), HttpStatus.OK);
-        }
-        else{
+        } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
 
-    @DeleteMapping ("/{id}")
-    public String deleteOrder(@PathVariable String id){
+    @DeleteMapping("/delete-order{id}")
+    public String deleteOrder(@PathVariable String id) {
         repository.deleteById(id);
         return "Order number " + id + " has been deleted!";
     }

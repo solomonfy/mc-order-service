@@ -25,5 +25,4 @@ public class Product {
     private Date createdOn;
     private String updatedBy;
     private Date updatedOn;
-    private int quantity;
 }
