@@ -2,6 +2,7 @@ package com.medochemie.ordermanagement.OrderService.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medochemie.ordermanagement.OrderService.VO.Product;
+import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
@@ -88,22 +89,23 @@ public class OrderController {
     @GetMapping("/list/{id}/products")
     public ResponseEntity<Response> getProductsForOrder(@PathVariable String id) {
 
-        log.info("Inside returnCustomResponse method of OrderController, found an order of id " + id);
+        log.info("Inside getProductsForOrder method of OrderController, found an order of id " + id);
         Optional<Order> optionalEntity = repository.findById(id);
         Order order = optionalEntity.get();
 
         List<Product> productList = new ArrayList();
-        List<String> listOfProductIds = order.getProductIds();
+        List<ProductIdsWithQuantity> listOfProductIds = order.getProductIdsWithQuantities();
 
-        Double total = 0D;
+//        Double total = 0D;
 
-        for (String productId : listOfProductIds) {
+        for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
+            String productId = productIdWithQuantity.getProductId();
             Response response = restTemplate.getForObject("http://MC-COMPANY-SERVICE/products/list/" + productId, Response.class);
             Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
-            total += product.getUnitPrice() * product.getQuantity();
+//            total += product.getUnitPrice() * productIdWithQuantity.getQuantity();
             productList.add(product);
         }
-        order.setAmount(total);
+//        order.setAmount(total);
         try {
             return ResponseEntity.ok(
                     Response.builder()
@@ -130,21 +132,21 @@ public class OrderController {
         return repository.getAllOrdersInPage(pageNo, pageSize, sortBy);
     }
 
-    @PostMapping("/createOrder")
+    @PostMapping("/create-order")
     public ResponseEntity<Order> createOrder(@RequestBody Order order) {
         log.info("Adding a new order for " + order.getAgent().getAgentName());
 
         return new ResponseEntity(repository.insert(order), HttpStatus.CREATED);
     }
 
-    @PutMapping("/updateOrder/{id}")
+    @PutMapping("/update-order/{id}")
     public ResponseEntity<Order> updateOrder(@PathVariable("id") String id, @RequestBody Order order) {
         Optional<Order> foundOrder = repository.findById(id);
         LOGGER.info("Updating an order with id " + order.getId());
         if (foundOrder.isPresent()) {
             Order updatedOrder = foundOrder.get();
             updatedOrder.setAmount(order.getAmount());
-            updatedOrder.setProductIds(order.getProductIds());
+            updatedOrder.setProductIdsWithQuantities(order.getProductIdsWithQuantities());
             updatedOrder.setShipment(order.getShipment());
             updatedOrder.setCreatedOn(order.getCreatedOn());
             return new ResponseEntity(repository.save(order), HttpStatus.OK);
@@ -153,7 +155,7 @@ public class OrderController {
         }
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/delete-order{id}")
     public String deleteOrder(@PathVariable String id) {
         repository.deleteById(id);
         return "Order number " + id + " has been deleted!";
