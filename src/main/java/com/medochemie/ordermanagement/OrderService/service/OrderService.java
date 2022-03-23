@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface OrderService {
     List<Order> findAllOrders();
+    List<Order> findAllOrdersByAgentName(String agentName);
     Order createOrder(Order order);
     Order findOrderById(String id);
     Order findOrderByOrderNumber(String orderNumber);
