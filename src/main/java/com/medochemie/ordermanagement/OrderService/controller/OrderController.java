@@ -21,7 +21,7 @@ import static com.google.common.collect.ImmutableMap.of;
 import static java.time.LocalDateTime.now;
 
 @RestController
-@RequestMapping("/orders")
+@RequestMapping("/api/v1/orders")
 @Slf4j
 public class OrderController {
 
@@ -61,63 +61,88 @@ public class OrderController {
     @GetMapping("/list/{id}")
     public ResponseEntity<Response> getOrder(@PathVariable String id) {
         LOGGER.info("Returning an order with an id " + id);
-        try {
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .status(HttpStatus.OK)
-                            .statusCode(HttpStatus.OK.value())
-                            .message("Returning an order with an id " + id)
-                            .data(of("order", orderService.findOrderById(id)))
-                            .build()
-            );
-        } catch (Exception e) {
+        Order order = orderService.findOrderById(id);
+
+        if (order != null) {
+            try {
+                return ResponseEntity.ok(
+                        Response.builder()
+                                .timeStamp(now())
+                                .status(HttpStatus.OK)
+                                .statusCode(HttpStatus.OK.value())
+                                .message("Returning an order with an id " + id)
+                                .data(of("order", orderService.findOrderById(id)))
+                                .build()
+                );
+            } catch (Exception e) {
+                throw e;
+            }
+        } else {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
                             .status(HttpStatus.BAD_REQUEST)
                             .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .message(e.getMessage())
+                            .message("No order found")
                             .data(of())
                             .build()
             );
         }
+
     }
 
     @GetMapping("/list/{id}/products")
     public ResponseEntity<Response> getProductsForOrder(@PathVariable String id) {
 
         log.info("Inside getProductsForOrder method of OrderController, found an order of id " + id);
-        Optional<Order> optionalEntity = repository.findById(id);
-        Order order = optionalEntity.get();
+        Order order = orderService.findOrderById(id);
 
         List<Product> productList = new ArrayList();
         List<ProductIdsWithQuantity> listOfProductIds = order.getProductIdsWithQuantities();
 
-//        Double total = 0D;
-
-        for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
-            String productId = productIdWithQuantity.getProductId();
-            Response response = restTemplate.getForObject("http://MC-COMPANY-SERVICE/products/list/" + productId, Response.class);
-            Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
-//            total += product.getUnitPrice() * productIdWithQuantity.getQuantity();
-            productList.add(product);
+        if (order != null && listOfProductIds.size() > 0) {
+            for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
+                String productId = productIdWithQuantity.getProductId();
+                Response response = restTemplate.getForObject("http://MC-COMPANY-SERVICE/products/list/" + productId, Response.class);
+                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
+                productList.add(product);
+            }
+            try {
+                return ResponseEntity.ok(
+                        Response.builder()
+                                .timeStamp(now())
+                                .message("List of products in the order id " + order.getOrderNumber())
+                                .status(HttpStatus.OK)
+                                .statusCode(HttpStatus.OK.value())
+                                .data(of("products", productList))
+                                .build()
+                );
+            } catch (Exception e) {
+                return new ResponseEntity(e.getMessage(), HttpStatus.BAD_REQUEST);
+            }
         }
-//        order.setAmount(total);
-        try {
+
+        if (order != null && order.getProductIdsWithQuantities().size() == 0) {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
-                            .message("List of products in the order id " + order.getId())
+                            .message("No products found in the order id " + order.getOrderNumber())
                             .status(HttpStatus.OK)
                             .statusCode(HttpStatus.OK.value())
-                            .data(of("products", productList))
                             .build()
             );
-        } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
-        }
 
+        }
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .message("No orders found with id " + id)
+                        .status(HttpStatus.NOT_FOUND)
+                        .statusCode(HttpStatus.NOT_FOUND.value())
+                        .message("No order found")
+                        .data(of())
+                        .build()
+        );
     }
 
 
@@ -139,17 +164,16 @@ public class OrderController {
                             .data(data)
                             .build()
             );
-        } else {
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .message("No orders found for " + agentName)
-                            .status(HttpStatus.NOT_FOUND)
-                            .statusCode(HttpStatus.NOT_FOUND.value())
-                            .data(of())
-                            .build()
-            );
         }
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .message("No orders found for " + agentName)
+                        .status(HttpStatus.NOT_FOUND)
+                        .statusCode(HttpStatus.NOT_FOUND.value())
+                        .data(of())
+                        .build()
+        );
 
 
     }
