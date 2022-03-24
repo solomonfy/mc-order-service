@@ -1,17 +1,16 @@
 package com.medochemie.ordermanagement.OrderService.controller.utils;
 
-import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import java.util.Calendar;
 
 public class GenerateOrderNumber {
 
-    public static String generateOrderNumber(String countryCode,Agent agent){
+    public static String generateOrderNumber(String countryCode, String agentName) {
 
         // need to grab the last generated order #
         Integer currentYear = Calendar.getInstance().get(Calendar.YEAR);
-        String name;
-        name = firstTwoChars(agent.getAgentName());
-        return countryCode + "/" + name +"/" + currentYear;
+        return firstTwoChars(agentName).toUpperCase() + "/" +
+                firstTwoChars(countryCode).toUpperCase() + "/" +
+                currentYear;
     }
 
     public static String firstTwoChars(String str) {

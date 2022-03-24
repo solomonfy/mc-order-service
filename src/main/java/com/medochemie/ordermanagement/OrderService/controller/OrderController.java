@@ -6,6 +6,7 @@ import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
 import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
+import com.medochemie.ordermanagement.OrderService.enums.Status;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,10 @@ import static java.time.LocalDateTime.now;
 public class OrderController {
 
     private final static Logger LOGGER = Logger.getLogger("");
+
+    final String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
+    final String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
+
     ObjectMapper mapper = new ObjectMapper();
 
     @Autowired
@@ -95,7 +100,7 @@ public class OrderController {
 
     @GetMapping("/list/{id}/products")
     public ResponseEntity<Response> getProductsForOrder(@PathVariable String id) {
-        String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
+
 
         log.info("Inside getProductsForOrder method of OrderController, found an order of id " + id);
         Order order = orderService.findOrderById(id);
@@ -182,37 +187,30 @@ public class OrderController {
     }
 
 
-//    @PostMapping("/create-order/{agentId}")
-//    public ResponseEntity<Order> createOrder(@RequestBody Order order, @PathVariable String agentId) {
-//        String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
-//        log.info("Adding a new order");
-//        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
-//        if (agent != null && agent.isActive() && order != null) {
-//            order.setAgent(agent);
-//            log.info("New order " + order.getOrderNumber() + " added for " + agent.getAgentName());
-//            return new ResponseEntity(repository.save(order), HttpStatus.CREATED);
-//        }
-////        if (agent == null || order == null) {
-////
-////        }
-//
-//        if (!agent.isActive()) {
-//            return new ResponseEntity(null, HttpStatus.BAD_REQUEST);
-//        }
-//        return new ResponseEntity(null, HttpStatus.NOT_FOUND);
-//
-//    }
-
     @PostMapping("/create-order/{agentId}")
     public ResponseEntity<Response> createOrder(@RequestBody Order order, @PathVariable String agentId) {
-        String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
+
         log.info("Adding a new order...");
         Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
-        if (agent != null && agent.isActive() && order != null) {
+        List<ProductIdsWithQuantity> productIdsWithQuantities = order.getProductIdsWithQuantities();
+        Double total = 0D;
+        if (agent != null && agent.isActive() && order != null && productIdsWithQuantities.size() > 0) {
+
             order.setAgent(agent);
-            order.setOrderNumber(generateOrderNumber(agent.getAgentName(), agent));
+            order.setOrderNumber(generateOrderNumber(agent.getAgentName(), agent.getAgentName()));
             order.setCreatedOn(new Date());
+            order.setStatus(Status.Draft);
+
+            for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
+                String productId = productIdWithQuantity.getProductId();
+                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
+                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
+                total = total + (product.getUnitPrice() * productIdWithQuantity.getQuantity());
+            }
+
+            order.setAmount(total);
             order.setCreatedBy("Logged in user - get from UI");
+
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -223,7 +221,6 @@ public class OrderController {
                             .build()
             );
         }
-//        if (agent == null || order == null) {}
 
         if (!agent.isActive()) {
             return ResponseEntity.ok(
