@@ -3,6 +3,7 @@ package com.medochemie.ordermanagement.OrderService.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medochemie.ordermanagement.OrderService.VO.Product;
 import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
+import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
@@ -18,6 +19,7 @@ import java.util.*;
 import java.util.logging.Logger;
 
 import static com.google.common.collect.ImmutableMap.of;
+import static com.medochemie.ordermanagement.OrderService.controller.utils.GenerateOrderNumber.generateOrderNumber;
 import static java.time.LocalDateTime.now;
 
 @RestController
@@ -93,6 +95,7 @@ public class OrderController {
 
     @GetMapping("/list/{id}/products")
     public ResponseEntity<Response> getProductsForOrder(@PathVariable String id) {
+        String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
 
         log.info("Inside getProductsForOrder method of OrderController, found an order of id " + id);
         Order order = orderService.findOrderById(id);
@@ -103,7 +106,7 @@ public class OrderController {
         if (order != null && listOfProductIds.size() > 0) {
             for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
                 String productId = productIdWithQuantity.getProductId();
-                Response response = restTemplate.getForObject("http://MC-COMPANY-SERVICE/products/list/" + productId, Response.class);
+                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
                 Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
                 productList.add(product);
             }
@@ -178,20 +181,71 @@ public class OrderController {
 
     }
 
-    @GetMapping("/page")
-    public Map<String, Object> getAllOrdersInPage(
-            @RequestParam(name = "pageNo", defaultValue = "0") int pageNo,
-            @RequestParam(name = "pageSize", defaultValue = "10") int pageSize,
-            @RequestParam(name = "sortBy", defaultValue = "id") String sortBy
-    ) {
-        return repository.getAllOrdersInPage(pageNo, pageSize, sortBy);
-    }
 
-    @PostMapping("/create-order")
-    public ResponseEntity<Order> createOrder(@RequestBody Order order) {
-        log.info("Adding a new order for " + order.getAgent().getAgentName());
+//    @PostMapping("/create-order/{agentId}")
+//    public ResponseEntity<Order> createOrder(@RequestBody Order order, @PathVariable String agentId) {
+//        String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
+//        log.info("Adding a new order");
+//        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+//        if (agent != null && agent.isActive() && order != null) {
+//            order.setAgent(agent);
+//            log.info("New order " + order.getOrderNumber() + " added for " + agent.getAgentName());
+//            return new ResponseEntity(repository.save(order), HttpStatus.CREATED);
+//        }
+////        if (agent == null || order == null) {
+////
+////        }
+//
+//        if (!agent.isActive()) {
+//            return new ResponseEntity(null, HttpStatus.BAD_REQUEST);
+//        }
+//        return new ResponseEntity(null, HttpStatus.NOT_FOUND);
+//
+//    }
 
-        return new ResponseEntity(repository.insert(order), HttpStatus.CREATED);
+    @PostMapping("/create-order/{agentId}")
+    public ResponseEntity<Response> createOrder(@RequestBody Order order, @PathVariable String agentId) {
+        String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
+        log.info("Adding a new order...");
+        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        if (agent != null && agent.isActive() && order != null) {
+            order.setAgent(agent);
+            order.setOrderNumber(generateOrderNumber(agent.getAgentName(), agent));
+            order.setCreatedOn(new Date());
+            order.setCreatedBy("Logged in user - get from UI");
+            return ResponseEntity.ok(
+                    Response.builder()
+                            .timeStamp(now())
+                            .status(HttpStatus.CREATED)
+                            .statusCode(HttpStatus.CREATED.value())
+                            .message("New order " + order.getOrderNumber() + " added for " + agent.getAgentName())
+                            .data(of("order", repository.save(order)))
+                            .build()
+            );
+        }
+//        if (agent == null || order == null) {}
+
+        if (!agent.isActive()) {
+            return ResponseEntity.ok(
+                    Response.builder()
+                            .timeStamp(now())
+                            .message("Agent isn't active, order can't be placed")
+                            .status(HttpStatus.BAD_REQUEST)
+                            .statusCode(HttpStatus.BAD_REQUEST.value())
+                            .data(of())
+                            .build()
+            );
+        }
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .message("No agent found, or order is not complete")
+                        .status(HttpStatus.NOT_FOUND)
+                        .statusCode(HttpStatus.NOT_FOUND.value())
+                        .data(of())
+                        .build()
+        );
+
     }
 
     @PutMapping("/update-order/{id}")
@@ -216,6 +270,14 @@ public class OrderController {
         return "Order number " + id + " has been deleted!";
     }
 
+    @GetMapping("/page")
+    public Map<String, Object> getAllOrdersInPage(
+            @RequestParam(name = "pageNo", defaultValue = "0") int pageNo,
+            @RequestParam(name = "pageSize", defaultValue = "10") int pageSize,
+            @RequestParam(name = "sortBy", defaultValue = "id") String sortBy
+    ) {
+        return repository.getAllOrdersInPage(pageNo, pageSize, sortBy);
+    }
 
 //    @PutMapping("/{update/{id}")
 //    public ResponseEntity<?> updateOrder(@RequestBody Order order){
