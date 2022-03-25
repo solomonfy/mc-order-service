@@ -8,10 +8,11 @@ import java.util.List;
 public interface OrderService {
     List<Order> findAllOrders();
     List<Order> findAllOrdersByAgentName(String agentName);
-    Order createOrder(Order order);
+    Order createOrder(Order order, String agentId);
     Order findOrderById(String id);
     Order findOrderByOrderNumber(String orderNumber);
     List<Product> findProductsForOrder(String id);
     Order updateOrder(String id);
     String deleteOrder(String id);
+//    String getOrderRefNo(String orderNumber);
 }

@@ -3,8 +3,10 @@ package com.medochemie.ordermanagement.OrderService.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medochemie.ordermanagement.OrderService.VO.Product;
 import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
+import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
+import com.medochemie.ordermanagement.OrderService.enums.Status;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
@@ -18,14 +20,19 @@ import java.util.*;
 import java.util.logging.Logger;
 
 import static com.google.common.collect.ImmutableMap.of;
+import static com.medochemie.ordermanagement.OrderService.controller.utils.GenerateOrderNumber.generateOrderNumber;
 import static java.time.LocalDateTime.now;
 
 @RestController
-@RequestMapping("/orders")
+@RequestMapping("/api/v1/orders")
 @Slf4j
 public class OrderController {
 
     private final static Logger LOGGER = Logger.getLogger("");
+
+    final String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
+    final String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
+
     ObjectMapper mapper = new ObjectMapper();
 
     @Autowired
@@ -61,63 +68,87 @@ public class OrderController {
     @GetMapping("/list/{id}")
     public ResponseEntity<Response> getOrder(@PathVariable String id) {
         LOGGER.info("Returning an order with an id " + id);
-        try {
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .status(HttpStatus.OK)
-                            .statusCode(HttpStatus.OK.value())
-                            .message("Returning an order with an id " + id)
-                            .data(of("order", orderService.findOrderById(id)))
-                            .build()
-            );
-        } catch (Exception e) {
+        Order order = orderService.findOrderById(id);
+
+        if (order != null) {
+            try {
+                return ResponseEntity.ok(
+                        Response.builder()
+                                .timeStamp(now())
+                                .status(HttpStatus.OK)
+                                .statusCode(HttpStatus.OK.value())
+                                .message("Returning an order with an id " + id)
+                                .data(of("order", orderService.findOrderById(id)))
+                                .build()
+                );
+            } catch (Exception e) {
+                throw e;
+            }
+        } else {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
                             .status(HttpStatus.BAD_REQUEST)
                             .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .message(e.getMessage())
+                            .message("No order found")
                             .data(of())
                             .build()
             );
         }
+
     }
 
     @GetMapping("/list/{id}/products")
     public ResponseEntity<Response> getProductsForOrder(@PathVariable String id) {
-
         log.info("Inside getProductsForOrder method of OrderController, found an order of id " + id);
-        Optional<Order> optionalEntity = repository.findById(id);
-        Order order = optionalEntity.get();
+        Order order = orderService.findOrderById(id);
 
         List<Product> productList = new ArrayList();
         List<ProductIdsWithQuantity> listOfProductIds = order.getProductIdsWithQuantities();
 
-//        Double total = 0D;
-
-        for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
-            String productId = productIdWithQuantity.getProductId();
-            Response response = restTemplate.getForObject("http://MC-COMPANY-SERVICE/products/list/" + productId, Response.class);
-            Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
-//            total += product.getUnitPrice() * productIdWithQuantity.getQuantity();
-            productList.add(product);
+        if (order != null && listOfProductIds.size() > 0) {
+            for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
+                String productId = productIdWithQuantity.getProductId();
+                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
+                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
+                productList.add(product);
+            }
+            try {
+                return ResponseEntity.ok(
+                        Response.builder()
+                                .timeStamp(now())
+                                .message("List of products in the order id " + order.getOrderNumber())
+                                .status(HttpStatus.OK)
+                                .statusCode(HttpStatus.OK.value())
+                                .data(of("products", productList))
+                                .build()
+                );
+            } catch (Exception e) {
+                return new ResponseEntity(e.getMessage(), HttpStatus.BAD_REQUEST);
+            }
         }
-//        order.setAmount(total);
-        try {
+
+        if (order != null && order.getProductIdsWithQuantities().size() == 0) {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
-                            .message("List of products in the order id " + order.getId())
+                            .message("No products found in the order id " + order.getOrderNumber())
                             .status(HttpStatus.OK)
                             .statusCode(HttpStatus.OK.value())
-                            .data(of("products", productList))
                             .build()
             );
-        } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
-        }
 
+        }
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .message("No orders found with id " + id)
+                        .status(HttpStatus.NOT_FOUND)
+                        .statusCode(HttpStatus.NOT_FOUND.value())
+                        .message("No order found")
+                        .data(of())
+                        .build()
+        );
     }
 
 
@@ -127,9 +158,9 @@ public class OrderController {
 
         Map<String, List<Order>> data = new HashMap<>();
         List<Order> orders = orderService.findAllOrdersByAgentName(agentName);
-        data.put("Orders", orders);
 
         if (orders.size() > 0) {
+            data.put("Orders", orders);
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -139,35 +170,80 @@ public class OrderController {
                             .data(data)
                             .build()
             );
-        } else {
+        }
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .message("No orders found for " + agentName)
+                        .status(HttpStatus.NOT_FOUND)
+                        .statusCode(HttpStatus.NOT_FOUND.value())
+                        .data(of())
+                        .build()
+        );
+
+
+    }
+
+
+    @PostMapping("/create-order/{agentId}")
+    public ResponseEntity<Response> createOrder(@RequestBody Order order, @PathVariable String agentId) {
+
+        log.info("Adding a new order...");
+        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        List<ProductIdsWithQuantity> productIdsWithQuantities = null;
+        try {
+            productIdsWithQuantities = order.getProductIdsWithQuantities();
+        }
+        catch (Exception e){
+            log.info(e.getMessage());
+        }
+
+        Double total = 0D;
+        if (agent != null && agent.isActive() && order != null && productIdsWithQuantities.size() > 0) {
+            order.setAgent(agent);
+            for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
+                String productId = productIdWithQuantity.getProductId();
+                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
+                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
+                total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
+            }
+
+            order.setAmount(total);
+
+            log.info("Added a new order for " + agent.getAgentName());
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
-                            .message("No orders found for " + agentName)
-                            .status(HttpStatus.NOT_FOUND)
-                            .statusCode(HttpStatus.NOT_FOUND.value())
-                            .data(of())
+                            .status(HttpStatus.CREATED)
+                            .statusCode(HttpStatus.CREATED.value())
+                            .message("New order " + order.getOrderNumber() + " added for " + agent.getAgentName())
+                            .data(of("order", orderService.createOrder(order, agentId)))
                             .build()
             );
         }
 
+        if (!agent.isActive()) {
+            log.info("Agent isn't active, order can't be placed");
+            return ResponseEntity.ok(
+                    Response.builder()
+                            .timeStamp(now())
+                            .message("Agent isn't active, order can't be placed")
+                            .status(HttpStatus.BAD_REQUEST)
+                            .statusCode(HttpStatus.BAD_REQUEST.value())
+                            .data(of())
+                            .build()
+            );
+        }
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .message("No agent found, or order is not complete")
+                        .status(HttpStatus.NOT_FOUND)
+                        .statusCode(HttpStatus.NOT_FOUND.value())
+                        .data(of())
+                        .build()
+        );
 
-    }
-
-    @GetMapping("/page")
-    public Map<String, Object> getAllOrdersInPage(
-            @RequestParam(name = "pageNo", defaultValue = "0") int pageNo,
-            @RequestParam(name = "pageSize", defaultValue = "10") int pageSize,
-            @RequestParam(name = "sortBy", defaultValue = "id") String sortBy
-    ) {
-        return repository.getAllOrdersInPage(pageNo, pageSize, sortBy);
-    }
-
-    @PostMapping("/create-order")
-    public ResponseEntity<Order> createOrder(@RequestBody Order order) {
-        log.info("Adding a new order for " + order.getAgent().getAgentName());
-
-        return new ResponseEntity(repository.insert(order), HttpStatus.CREATED);
     }
 
     @PutMapping("/update-order/{id}")
@@ -182,7 +258,7 @@ public class OrderController {
             updatedOrder.setCreatedOn(order.getCreatedOn());
             return new ResponseEntity(repository.save(order), HttpStatus.OK);
         } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            return new ResponseEntity(null, HttpStatus.NOT_FOUND);
         }
     }
 
@@ -192,30 +268,26 @@ public class OrderController {
         return "Order number " + id + " has been deleted!";
     }
 
+    @GetMapping("/page")
+    public Map<String, Object> getAllOrdersInPage(
+            @RequestParam(name = "pageNo", defaultValue = "0") int pageNo,
+            @RequestParam(name = "pageSize", defaultValue = "10") int pageSize,
+            @RequestParam(name = "sortBy", defaultValue = "id") String sortBy
+    ) {
+        return repository.getAllOrdersInPage(pageNo, pageSize, sortBy);
+    }
 
-//    @PutMapping("/{update/{id}")
-//    public ResponseEntity<?> updateOrder(@RequestBody Order order){
-//        try {
-//            Order updatedOrder = repository.updateOrder(order);
-//            return new ResponseEntity<>(updatedOrder, null, HttpStatus.OK);
-//        } catch (Exception e){
-//            return new ResponseEntity(null, HttpStatus.BAD_REQUEST);
-//        }
-//    }
 
-//    @GetMapping(value = "/getAllOrdersByIdList")
-//    public ResponseEntity<List<Order>> getAllOrderByOrderIdList(@RequestParam("orderIdList") List<String> orderIdList) {
-//        try {
-//            List<Order> orderListToBeReturned = new ArrayList<Order>();
-//            List<Order> fetchedOrderList = repository.getOrderListByIdList(orderIdList);
-//
-//            if(fetchedOrderList.size() > 0) {
-//                orderListToBeReturned.addAll(fetchedOrderList);
-//            }
-//
-//            return new ResponseEntity(orderListToBeReturned, null, HttpStatus.OK);
-//        } catch (Exception e) {
-//            return new ResponseEntity(null, HttpStatus.BAD_REQUEST);
-//        }
-//    }
+    @GetMapping(value = "/getAllOrdersByIdList")
+    public ResponseEntity<List<Order>> getAllOrderByOrderIdList(@RequestParam List<String> orderIdList) {
+        try {
+            List<Order> orderListToBeReturned = repository.getOrderListByIdList(orderIdList);
+            return new ResponseEntity(orderListToBeReturned, null, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+
+
 }
