@@ -14,5 +14,5 @@ public interface OrderService {
     List<Product> findProductsForOrder(String id);
     Order updateOrder(String id);
     String deleteOrder(String id);
-    String getOrderRefNo(String orderNumber);
+//    String getOrderRefNo(String orderNumber);
 }

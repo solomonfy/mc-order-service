@@ -100,9 +100,9 @@ public class OrderServiceImpl implements OrderService {
         return "Order with id - " + id + " has been deleted";
     }
 
-    @Override
-    public String getOrderRefNo(String orderNumber) {
-        Query query = new Query(Criteria.where("_id").is(orderNumber));
+
+    private String getOrderRefNo(String agentCode) {
+        Query query = new Query(Criteria.where("_id").is(agentCode));
         System.out.println(query);
         Update update = new Update();
         update.inc("sequence", 1);
@@ -110,7 +110,7 @@ public class OrderServiceImpl implements OrderService {
         FindAndModifyOptions findAndModifyOptions = new FindAndModifyOptions();
         findAndModifyOptions.returnNew(true);
         OrderSequenceId orderSequenceId = new OrderSequenceId();
-        System.out.println(orderNumber);
+        System.out.println(agentCode);
         try {
             orderSequenceId = mongoTemplate.findAndModify(query, update, OrderSequenceId.class);
             System.out.println(orderSequenceId);
@@ -118,7 +118,7 @@ public class OrderServiceImpl implements OrderService {
             System.out.println(e.getMessage());
         }
         String orderRef = "";
-        orderRef = orderNumber + StringUtils.leftPad(Long.toString(orderSequenceId.getSequence()), 5, "0");
+        orderRef = agentCode + StringUtils.leftPad(Long.toString(orderSequenceId.getSequence()), 5, "0");
         System.out.println(orderRef);
         return orderRef;
     }
