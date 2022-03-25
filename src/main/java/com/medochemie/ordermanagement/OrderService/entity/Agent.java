@@ -13,7 +13,7 @@ public class Agent {
 
     private String id;
     private String agentName;
-//    private String agentCode;
+    private String agentCode;
 //    private String countryId;
     private boolean active;
 }

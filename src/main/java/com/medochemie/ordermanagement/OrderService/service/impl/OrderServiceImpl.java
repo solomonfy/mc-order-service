@@ -55,7 +55,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (order.getId() == null) {
-            order.setOrderNumber(getOrderRefNo(order.getAgent().getAgentName().trim().toUpperCase()) + "/" + currentYear);
+            order.setOrderNumber(getOrderRefNo(order.getAgent().getAgentCode().trim().toUpperCase()) + "/" + currentYear);
             order.setCreatedOn(new Date());
             order.setStatus(Status.Draft);
             order.setCreatedBy("Logged in user - get from UI");
@@ -103,23 +103,17 @@ public class OrderServiceImpl implements OrderService {
 
     private String getOrderRefNo(String agentCode) {
         Query query = new Query(Criteria.where("_id").is(agentCode));
-        System.out.println(query);
         Update update = new Update();
         update.inc("sequence", 1);
-        System.out.println(update);
         FindAndModifyOptions findAndModifyOptions = new FindAndModifyOptions();
         findAndModifyOptions.returnNew(true);
         OrderSequenceId orderSequenceId = new OrderSequenceId();
-        System.out.println(agentCode);
         try {
             orderSequenceId = mongoTemplate.findAndModify(query, update, OrderSequenceId.class);
-            System.out.println(orderSequenceId);
         } catch (Exception e) {
-            System.out.println(e.getMessage());
         }
         String orderRef = "";
         orderRef = agentCode + StringUtils.leftPad(Long.toString(orderSequenceId.getSequence()), 5, "0");
-        System.out.println(orderRef);
         return orderRef;
     }
 }

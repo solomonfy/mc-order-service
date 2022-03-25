@@ -201,9 +201,6 @@ public class OrderController {
         Double total = 0D;
         if (agent != null && agent.isActive() && order != null && productIdsWithQuantities.size() > 0) {
             order.setAgent(agent);
-//            order.setOrderNumber(orderService.getOrderRefNo(order.getOrderNumber()));
-//            order.setOrderNumber(generateOrderNumber(agent.getAgentName(), agent.getAgentName()));
-
             for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
                 String productId = productIdWithQuantity.getProductId();
                 Response response = restTemplate.getForObject(productUrl + productId, Response.class);
