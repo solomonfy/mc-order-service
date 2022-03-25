@@ -42,7 +42,8 @@ public interface OrderRepository extends MongoRepository<Order, String> {
         return response;
     };
 
-
+    @Query(value="{ 'id' : ?0 }")
+    List<Order> getOrderListByIdList(List<String> ids);
 
 
 }
