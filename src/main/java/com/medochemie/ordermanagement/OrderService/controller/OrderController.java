@@ -188,61 +188,41 @@ public class OrderController {
     @PostMapping("/create-order/{agentId}")
     public ResponseEntity<Response> createOrder(@RequestBody Order order, @PathVariable String agentId) {
 
-        log.info("Adding a new order...");
-        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
-        List<ProductIdsWithQuantity> productIdsWithQuantities = null;
-        try {
-            productIdsWithQuantities = order.getProductIdsWithQuantities();
-        }
-        catch (Exception e){
-            log.info(e.getMessage());
-        }
-
-        Double total = 0D;
-        if (agent != null && agent.isActive() && order != null && productIdsWithQuantities.size() > 0) {
-            order.setAgent(agent);
-            for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
-                String productId = productIdWithQuantity.getProductId();
-                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
-                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
-                total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
-            }
-
-            order.setAmount(total);
-
-            log.info("Added a new order for " + agent.getAgentName());
+        LOGGER.info("Adding a new order...");
+//        if (order != null) {
+//            LOGGER.info("Added a new order for " + order.getAgent().getAgentName());
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
                             .status(HttpStatus.CREATED)
                             .statusCode(HttpStatus.CREATED.value())
-                            .message("New order " + order.getOrderNumber() + " added for " + agent.getAgentName())
                             .data(of("order", orderService.createOrder(order, agentId)))
+                            .message("New order " + order.getOrderNumber() + " added for " + order.getAgent().getAgentName())
                             .build()
             );
-        }
+//        }
 
-        if (!agent.isActive()) {
-            log.info("Agent isn't active, order can't be placed");
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .message("Agent isn't active, order can't be placed")
-                            .status(HttpStatus.BAD_REQUEST)
-                            .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .data(of())
-                            .build()
-            );
-        }
-        return ResponseEntity.ok(
-                Response.builder()
-                        .timeStamp(now())
-                        .message("No agent found, or order is not complete")
-                        .status(HttpStatus.NOT_FOUND)
-                        .statusCode(HttpStatus.NOT_FOUND.value())
-                        .data(of())
-                        .build()
-        );
+//        if (!order.getAgent().isActive()) {
+//            log.info("Agent isn't active, order can't be placed");
+//            return ResponseEntity.ok(
+//                    Response.builder()
+//                            .timeStamp(now())
+//                            .message("Agent isn't active, order can't be placed")
+//                            .status(HttpStatus.BAD_REQUEST)
+//                            .statusCode(HttpStatus.BAD_REQUEST.value())
+//                            .data(of())
+//                            .build()
+//            );
+//        }
+//        return ResponseEntity.ok(
+//                Response.builder()
+//                        .timeStamp(now())
+//                        .message("No agent found, or order is not complete")
+//                        .status(HttpStatus.NOT_FOUND)
+//                        .statusCode(HttpStatus.NOT_FOUND.value())
+//                        .data(of())
+//                        .build()
+//        );
 
     }
 
