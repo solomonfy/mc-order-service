@@ -19,7 +19,7 @@ import java.util.List;
 public class Order {
     @Id
     private String id;
-    private Agent agent;
+    private String agentId;
     private String orderNumber;
     private Double amount;
     private String shipment;

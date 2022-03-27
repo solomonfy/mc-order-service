@@ -79,7 +79,7 @@ public class OrderServiceImpl implements OrderService {
                     total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
                 }
 
-                order.setAgent(agent);
+                order.setAgentId(agentId);
                 order.setAmount(total);
                 order.setCreatedOn(new Date());
                 order.setStatus(Status.Draft);
@@ -93,7 +93,7 @@ public class OrderServiceImpl implements OrderService {
                 LOGGER.info(e.getMessage());
                 throw e;
             }
-            order.setOrderNumber(getOrderRefNo(order.getAgent().getAgentCode().trim().toUpperCase()) + "/" + currentYear);
+            order.setOrderNumber(getOrderRefNo(agent.getAgentCode().trim().toUpperCase()) + "/" + currentYear);
             order = repository.save(order);
         }
         return order;

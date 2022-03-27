@@ -211,7 +211,7 @@ public class OrderController {
                             .build()
             );
         }
-        if (order.getAgent() == null || order == null) {
+        if (order.getAgentId() == null || order == null) {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -228,7 +228,7 @@ public class OrderController {
                         .status(HttpStatus.CREATED)
                         .statusCode(HttpStatus.CREATED.value())
                         .data(of("order", order))
-                        .message("New order " + order.getOrderNumber() + " added for " + order.getAgent().getAgentName())
+                        .message("New order " + order.getOrderNumber() + " added for " + agent.getAgentName())
                         .build()
         );
 
