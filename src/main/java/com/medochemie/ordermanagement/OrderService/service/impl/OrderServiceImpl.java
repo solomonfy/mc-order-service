@@ -1,8 +1,12 @@
 package com.medochemie.ordermanagement.OrderService.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medochemie.ordermanagement.OrderService.VO.Product;
+import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
+import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.OrderSequenceId;
+import com.medochemie.ordermanagement.OrderService.entity.Response;
 import com.medochemie.ordermanagement.OrderService.enums.Status;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
@@ -14,17 +18,26 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.text.DecimalFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Logger;
 
 @Service
 public class OrderServiceImpl implements OrderService {
 
-    private final OrderRepository repository;
+    private final static Logger LOGGER = Logger.getLogger("");
     private static DecimalFormat decimalFormat = new DecimalFormat("#.##");
+    final String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
+    final String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
+    private final OrderRepository repository;
+    ObjectMapper mapper = new ObjectMapper();
+
+    @Autowired
+    RestTemplate restTemplate;
 
     @Autowired
     MongoTemplate mongoTemplate;
@@ -48,6 +61,25 @@ public class OrderServiceImpl implements OrderService {
         Order newOrder = order;
         Order orderFromDB = null;
         Integer currentYear = Calendar.getInstance().get(Calendar.YEAR);
+        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        List<ProductIdsWithQuantity> productIdsWithQuantities = null;
+        Double total = 0D;
+
+        if (agent != null && agent.isActive() && order != null) {
+            try {
+                productIdsWithQuantities = order.getProductIdsWithQuantities();
+            } catch (Exception e) {
+                LOGGER.info(e.getMessage());
+            }
+            order.setAgent(agent);
+            for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
+                String productId = productIdWithQuantity.getProductId();
+                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
+                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
+                total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
+            }
+            order.setAmount(total);
+        }
 
         if (order.getId() != null) {
             orderFromDB = repository.findById(order.getId()).orElse(null);
