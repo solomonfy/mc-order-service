@@ -30,7 +30,7 @@ import java.util.logging.Logger;
 public class OrderServiceImpl implements OrderService {
 
     private final static Logger LOGGER = Logger.getLogger("");
-    private static DecimalFormat decimalFormat = new DecimalFormat("#.##");
+    private static DecimalFormat decimalFormat = new DecimalFormat("###,###.###");
     final String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
     final String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
     private final OrderRepository repository;
@@ -79,6 +79,8 @@ public class OrderServiceImpl implements OrderService {
                 total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
             }
             order.setAmount(total);
+            String totalAmount = decimalFormat.format(total);
+            System.out.println(totalAmount);
         }
 
         if (order.getId() != null) {
