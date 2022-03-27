@@ -113,7 +113,7 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
         }
         String orderRef = "";
-        orderRef = agentCode + StringUtils.leftPad(Long.toString(orderSequenceId.getSequence()), 5, "0");
+        orderRef = agentCode + StringUtils.leftPad(Long.toString(orderSequenceId.getSequence()), 3, "0");
         return orderRef;
     }
 }
