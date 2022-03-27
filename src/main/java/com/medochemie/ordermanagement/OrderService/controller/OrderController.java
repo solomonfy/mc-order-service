@@ -6,7 +6,6 @@ import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
 import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
-import com.medochemie.ordermanagement.OrderService.enums.Status;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +19,6 @@ import java.util.*;
 import java.util.logging.Logger;
 
 import static com.google.common.collect.ImmutableMap.of;
-import static com.medochemie.ordermanagement.OrderService.controller.utils.GenerateOrderNumber.generateOrderNumber;
 import static java.time.LocalDateTime.now;
 
 @RestController
@@ -158,13 +156,20 @@ public class OrderController {
 
         Map<String, List<Order>> data = new HashMap<>();
         List<Order> orders = orderService.findAllOrdersByAgentName(agentName);
+        String message = "";
+        Integer orderCount = orders.size();
 
         if (orders.size() > 0) {
+            message = orderCount == 1 ?
+                    (orderCount + " order has been retrieved for " + agentName + ".") :
+                    (orderCount + " orders have been retrieved for " + agentName + ".");
+
             data.put("Orders", orders);
+
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
-                            .message(orders.size() + " orders of " + agentName + " are retrieved")
+                            .message(message)
                             .status(HttpStatus.OK)
                             .statusCode(HttpStatus.OK.value())
                             .data(data)
@@ -180,49 +185,52 @@ public class OrderController {
                         .data(of())
                         .build()
         );
-
-
     }
 
 
     @PostMapping("/create-order/{agentId}")
     public ResponseEntity<Response> createOrder(@RequestBody Order order, @PathVariable String agentId) {
-
         LOGGER.info("Adding a new order...");
-//        if (order != null) {
-//            LOGGER.info("Added a new order for " + order.getAgent().getAgentName());
+        Agent agent = null;
+        try {
+            order = orderService.createOrder(order, agentId);
+            agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        } catch (Exception e) {
+            LOGGER.info(e.getMessage());
+            throw e;
+        }
+        if (!agent.isActive()) {
+            LOGGER.info("Agent isn't active, order can't be placed");
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
-                            .status(HttpStatus.CREATED)
-                            .statusCode(HttpStatus.CREATED.value())
-                            .data(of("order", orderService.createOrder(order, agentId)))
-                            .message("New order " + order.getOrderNumber() + " added for " + order.getAgent().getAgentName())
+                            .message("Agent isn't active, order can't be placed")
+                            .status(HttpStatus.BAD_REQUEST)
+                            .statusCode(HttpStatus.BAD_REQUEST.value())
+                            .data(of())
                             .build()
             );
-//        }
-
-//        if (!order.getAgent().isActive()) {
-//            log.info("Agent isn't active, order can't be placed");
-//            return ResponseEntity.ok(
-//                    Response.builder()
-//                            .timeStamp(now())
-//                            .message("Agent isn't active, order can't be placed")
-//                            .status(HttpStatus.BAD_REQUEST)
-//                            .statusCode(HttpStatus.BAD_REQUEST.value())
-//                            .data(of())
-//                            .build()
-//            );
-//        }
-//        return ResponseEntity.ok(
-//                Response.builder()
-//                        .timeStamp(now())
-//                        .message("No agent found, or order is not complete")
-//                        .status(HttpStatus.NOT_FOUND)
-//                        .statusCode(HttpStatus.NOT_FOUND.value())
-//                        .data(of())
-//                        .build()
-//        );
+        }
+        if (order.getAgent() == null || order == null) {
+            return ResponseEntity.ok(
+                    Response.builder()
+                            .timeStamp(now())
+                            .message("No agent found, or order is not complete")
+                            .status(HttpStatus.NOT_FOUND)
+                            .statusCode(HttpStatus.NOT_FOUND.value())
+                            .data(of())
+                            .build()
+            );
+        }
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .status(HttpStatus.CREATED)
+                        .statusCode(HttpStatus.CREATED.value())
+                        .data(of("order", order))
+                        .message("New order " + order.getOrderNumber() + " added for " + order.getAgent().getAgentName())
+                        .build()
+        );
 
     }
 
@@ -267,7 +275,6 @@ public class OrderController {
             return new ResponseEntity(e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
-
 
 
 }

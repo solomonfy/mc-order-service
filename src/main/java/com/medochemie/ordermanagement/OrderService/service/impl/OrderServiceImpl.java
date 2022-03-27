@@ -65,41 +65,36 @@ public class OrderServiceImpl implements OrderService {
         List<ProductIdsWithQuantity> productIdsWithQuantities = null;
         Double total = 0D;
 
-        if (agent != null && agent.isActive() && order != null) {
-            try {
-                productIdsWithQuantities = order.getProductIdsWithQuantities();
-            } catch (Exception e) {
-                LOGGER.info(e.getMessage());
-            }
-            order.setAgent(agent);
-            for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
-                String productId = productIdWithQuantity.getProductId();
-                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
-                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
-                total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
-            }
-            order.setAmount(total);
-            String totalAmount = decimalFormat.format(total);
-            System.out.println(totalAmount);
-        }
-
         if (order.getId() != null) {
             orderFromDB = repository.findById(order.getId()).orElse(null);
             order = orderFromDB;
         }
+        if (order.getId() == null && agent != null && agent.isActive() && order != null) {
+            try {
+                productIdsWithQuantities = order.getProductIdsWithQuantities();
+                for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
+                    String productId = productIdWithQuantity.getProductId();
+                    Response response = restTemplate.getForObject(productUrl + productId, Response.class);
+                    Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
+                    total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
+                }
 
-        if (order.getId() == null) {
+                order.setAgent(agent);
+                order.setAmount(total);
+                order.setCreatedOn(new Date());
+                order.setStatus(Status.Draft);
+                order.setCreatedBy("Logged in user - get from UI");
+
+                String totalAmount = decimalFormat.format(total);
+                System.out.println(totalAmount);
+            } catch (Exception e) {
+                order.setId(null);
+                order.setOrderNumber(newOrder.getOrderNumber());
+                LOGGER.info(e.getMessage());
+                throw e;
+            }
             order.setOrderNumber(getOrderRefNo(order.getAgent().getAgentCode().trim().toUpperCase()) + "/" + currentYear);
-            order.setCreatedOn(new Date());
-            order.setStatus(Status.Draft);
-            order.setCreatedBy("Logged in user - get from UI");
-        }
-        try {
             order = repository.save(order);
-        } catch (Exception e) {
-            order.setId(null);
-            order.setOrderNumber(newOrder.getOrderNumber());
-            throw e;
         }
         return order;
     }
