@@ -1,13 +1,11 @@
 package com.medochemie.ordermanagement.OrderService.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.medochemie.ordermanagement.OrderService.VO.Product;
 import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
 import com.medochemie.ordermanagement.OrderService.enums.Status;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.format.annotation.DateTimeFormat;
 
