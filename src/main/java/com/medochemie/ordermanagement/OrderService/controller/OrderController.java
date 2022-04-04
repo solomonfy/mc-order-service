@@ -1,53 +1,55 @@
 package com.medochemie.ordermanagement.OrderService.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medochemie.ordermanagement.OrderService.VO.Product;
-import com.medochemie.ordermanagement.OrderService.VO.ProductIdsWithQuantity;
 import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
+import com.medochemie.ordermanagement.OrderService.exception.ApiRequestException;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.*;
-import java.util.logging.Logger;
 
 import static com.google.common.collect.ImmutableMap.of;
 import static java.time.LocalDateTime.now;
 
 @RestController
 @RequestMapping("/api/v1/orders")
-@Slf4j
 public class OrderController {
 
-    private final static Logger LOGGER = Logger.getLogger("");
+    private final static Logger logger = LoggerFactory.getLogger(Order.class);
 
-    final String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
     final String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
 
     ObjectMapper mapper = new ObjectMapper();
 
     @Autowired
     RestTemplate restTemplate;
+
     @Autowired
-    OrderService orderService;
+    WebClient.Builder webClientBuilder;
+    private OrderService orderService;
     @Autowired
     private OrderRepository repository;
 
+    public OrderController(OrderService orderService) {
+        this.orderService = orderService;
+    }
+
     @GetMapping("/list")
     public ResponseEntity<Response> getOrders() {
-        log.info("Return all orders");
-
-        Map<String, List<Order>> data = new HashMap<>();
-        data.put("Orders", orderService.findAllOrders());
-
+        logger.info("Return all orders");
         try {
+            Map<String, List<Order>> data = new HashMap<>();
+            data.put("Orders", orderService.findAllOrders());
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -58,14 +60,16 @@ public class OrderController {
                             .build()
             );
         } catch (Exception e) {
-            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new ApiRequestException("Oops no orders found");
+//            return new ResponseEntity(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+
 
     }
 
     @GetMapping("/list/{id}")
     public ResponseEntity<Response> getOrder(@PathVariable String id) {
-        LOGGER.info("Returning an order with an id " + id);
+        logger.info("Returning an order with an id " + id);
         Order order = orderService.findOrderById(id);
 
         if (order != null) {
@@ -80,6 +84,7 @@ public class OrderController {
                                 .build()
                 );
             } catch (Exception e) {
+                logger.info(e.getMessage());
                 throw e;
             }
         } else {
@@ -97,50 +102,32 @@ public class OrderController {
     }
 
     @GetMapping("/list/{id}/products")
-    public ResponseEntity<Response> getProductsForOrder(@PathVariable String id) {
-        log.info("Inside getProductsForOrder method of OrderController, found an order of id " + id);
+    public ResponseEntity<?> getProductsForOrder(@PathVariable String id) {
+        logger.info("Inside getProductsForOrder method of OrderController, getting all products for an order with id " + id);
         Order order = orderService.findOrderById(id);
+        ArrayList productList = (ArrayList) orderService.findProductsForOrder(id);
 
-        List<Product> productList = new ArrayList();
-        List<ProductIdsWithQuantity> listOfProductIds = order.getProductIdsWithQuantities();
-
-        if (order != null && listOfProductIds.size() > 0) {
-            for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
-                String productId = productIdWithQuantity.getProductId();
-                Response response = restTemplate.getForObject(productUrl + productId, Response.class);
-                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
-                productList.add(product);
-            }
+        if (productList.size() > 0) {
+            logger.info(String.format("Retrieved list of products in the order number %s", order.getOrderNumber()));
             try {
                 return ResponseEntity.ok(
                         Response.builder()
                                 .timeStamp(now())
-                                .message("List of products in the order id " + order.getOrderNumber())
+                                .message(String.format("List of products in the order number %s", order.getOrderNumber()))
                                 .status(HttpStatus.OK)
                                 .statusCode(HttpStatus.OK.value())
                                 .data(of("products", productList))
                                 .build()
                 );
             } catch (Exception e) {
-                return new ResponseEntity(e.getMessage(), HttpStatus.BAD_REQUEST);
+                return new ResponseEntity(e.getMessage(), HttpStatus.OK);
             }
         }
 
-        if (order != null && order.getProductIdsWithQuantities().size() == 0) {
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .message("No products found in the order id " + order.getOrderNumber())
-                            .status(HttpStatus.OK)
-                            .statusCode(HttpStatus.OK.value())
-                            .build()
-            );
-
-        }
         return ResponseEntity.ok(
                 Response.builder()
                         .timeStamp(now())
-                        .message("No orders found with id " + id)
+                        .message("No order found with id " + id)
                         .status(HttpStatus.NOT_FOUND)
                         .statusCode(HttpStatus.NOT_FOUND.value())
                         .message("No order found")
@@ -152,7 +139,7 @@ public class OrderController {
 
     @GetMapping("/list/agent-name/{agentName}")
     public ResponseEntity<Response> getOrdersForAnAgent(@PathVariable String agentName) {
-        log.info("Retrieving all orders of " + agentName);
+        logger.info("Retrieving all orders of " + agentName);
 
         Map<String, List<Order>> data = new HashMap<>();
         List<Order> orders = orderService.findAllOrdersByAgentName(agentName);
@@ -190,54 +177,58 @@ public class OrderController {
 
     @PostMapping("/create-order/{agentId}")
     public ResponseEntity<Response> createOrder(@RequestBody Order order, @PathVariable String agentId) {
-        LOGGER.info("Adding a new order...");
-        Agent agent = null;
-        try {
-            order = orderService.createOrder(order, agentId);
-            agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
-        } catch (Exception e) {
-            LOGGER.info(e.getMessage());
-            throw e;
-        }
-        if (!agent.isActive()) {
-            LOGGER.info("Agent isn't active, order can't be placed");
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .message("Agent isn't active, order can't be placed")
-                            .status(HttpStatus.BAD_REQUEST)
-                            .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .data(of())
-                            .build()
-            );
-        }
-        if (order.getAgentId() == null || order == null) {
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .message("No agent found, or order is not complete")
-                            .status(HttpStatus.NOT_FOUND)
-                            .statusCode(HttpStatus.NOT_FOUND.value())
-                            .data(of())
-                            .build()
-            );
-        }
-        return ResponseEntity.ok(
+        logger.info("Adding a new order...");
+
+        Map<String, Order> data = new HashMap<>();
+        String message = "";
+        HttpStatus httpStatus = HttpStatus.OK;
+        HttpStatus badRequest = HttpStatus.BAD_REQUEST;
+        HttpStatus notFound = HttpStatus.NOT_FOUND;
+        HttpStatus success = HttpStatus.CREATED;
+
+        ResponseEntity responseEntity = ResponseEntity.ok(
                 Response.builder()
                         .timeStamp(now())
-                        .status(HttpStatus.CREATED)
-                        .statusCode(HttpStatus.CREATED.value())
-                        .data(of("order", order))
-                        .message("New order " + order.getOrderNumber() + " added for " + agent.getAgentName())
+                        .message(message)
+                        .status(httpStatus)
+                        .statusCode(httpStatus.value())
+                        .data(data)
                         .build()
         );
 
+        Agent agent = null;
+        try {
+            order = orderService.createOrder(order, agentId);
+
+            // this agent object was created to check if Active or not.
+            agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        } catch (Exception e) {
+            logger.info(e.getMessage());
+            throw e;
+        }
+        if (!agent.isActive()) {
+            logger.info("Agent isn't active, order can't be placed");
+            message = "Agent isn't active, order can't be placed";
+            httpStatus = badRequest;
+            return responseEntity;
+        }
+        if (order.getAgentId() == null || order == null) {
+            message = "No agent found, or order is not complete";
+            httpStatus = notFound;
+            return responseEntity;
+        }
+
+//        "New order " + order.getOrderNumber() + " added for " + agent.getAgentName()
+        message = String.format("New order %s", order.getOrderNumber() + " added for %s", agent.getAgentName());
+        httpStatus = success;
+        data.put("order", order);
+        return responseEntity;
     }
 
     @PutMapping("/update-order/{id}")
     public ResponseEntity<Order> updateOrder(@PathVariable("id") String id, @RequestBody Order order) {
         Optional<Order> foundOrder = repository.findById(id);
-        LOGGER.info("Updating an order with id " + order.getId());
+        logger.info("Updating an order with id " + order.getId());
         if (foundOrder.isPresent()) {
             Order updatedOrder = foundOrder.get();
             updatedOrder.setAmount(order.getAmount());

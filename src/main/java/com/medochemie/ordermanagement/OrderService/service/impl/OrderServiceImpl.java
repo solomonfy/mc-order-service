@@ -11,6 +11,8 @@ import com.medochemie.ordermanagement.OrderService.enums.Status;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -19,17 +21,19 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.logging.Logger;
+
 
 @Service
 public class OrderServiceImpl implements OrderService {
 
-    private final static Logger LOGGER = Logger.getLogger("");
+    private final static Logger logger = LoggerFactory.getLogger(Order.class);
     private static DecimalFormat decimalFormat = new DecimalFormat("###,###.###");
     final String productUrl = "http://MC-COMPANY-SERVICE/api/v1/products/list/";
     final String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
@@ -38,6 +42,10 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     RestTemplate restTemplate;
+
+    @Autowired
+    WebClient.Builder webClientBuilder;
+
 
     @Autowired
     MongoTemplate mongoTemplate;
@@ -62,6 +70,9 @@ public class OrderServiceImpl implements OrderService {
         Order orderFromDB = null;
         Integer currentYear = Calendar.getInstance().get(Calendar.YEAR);
         Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+
+        logger.info(String.format("Printing agent from OrderService class %s", agent.getAgentName()));
+
         List<ProductIdsWithQuantity> productIdsWithQuantities = null;
         Double total = 0D;
 
@@ -74,7 +85,12 @@ public class OrderServiceImpl implements OrderService {
                 productIdsWithQuantities = order.getProductIdsWithQuantities();
                 for (ProductIdsWithQuantity productIdWithQuantity : productIdsWithQuantities) {
                     String productId = productIdWithQuantity.getProductId();
-                    Response response = restTemplate.getForObject(productUrl + productId, Response.class);
+                    Response response = webClientBuilder.build()
+                            .get()
+                            .uri(productUrl + productId)
+                            .retrieve()
+                            .bodyToMono(Response.class)
+                            .block();
                     Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
                     total += (product.getUnitPrice() * productIdWithQuantity.getQuantity());
                 }
@@ -90,7 +106,7 @@ public class OrderServiceImpl implements OrderService {
             } catch (Exception e) {
                 order.setId(null);
                 order.setOrderNumber(newOrder.getOrderNumber());
-                LOGGER.info(e.getMessage());
+                logger.info(e.getMessage());
                 throw e;
             }
             order.setOrderNumber(getOrderRefNo(agent.getAgentCode().trim().toUpperCase()) + "/" + currentYear);
@@ -110,8 +126,31 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<Product> findProductsForOrder(String id) {
-        return repository.findProductsForOrder(id);
+    public List<Product> findProductsForOrder(String orderId) {
+        Order order = this.findOrderById(orderId);
+
+        ArrayList productList = new ArrayList();
+        List<ProductIdsWithQuantity> listOfProductIds = order.getProductIdsWithQuantities();
+
+        if (order != null && listOfProductIds.size() > 0) {
+            for (ProductIdsWithQuantity productIdWithQuantity : listOfProductIds) {
+                String productId = productIdWithQuantity.getProductId();
+                Response response = webClientBuilder.build()
+                        .get()
+                        .uri(productUrl + productId)
+                        .retrieve()
+                        .bodyToMono(Response.class)
+                        .block();
+                Product product = mapper.convertValue(response.getData().values().toArray()[0], Product.class);
+                productList.add(product);
+            }
+            try {
+                return productList;
+            } catch (Exception e) {
+                throw e;
+            }
+        }
+        return null;
     }
 
     @Override
