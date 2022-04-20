@@ -23,6 +23,7 @@ import static java.time.LocalDateTime.now;
 
 @RestController
 @RequestMapping("/api/v1/orders")
+@CrossOrigin(origins = {"http://localhost:4200/", "http://localhost:3000/"})
 public class OrderController {
 
     private final static Logger logger = LoggerFactory.getLogger(Order.class);
@@ -49,7 +50,7 @@ public class OrderController {
         logger.info("Return all orders");
         try {
             Map<String, List<Order>> data = new HashMap<>();
-            data.put("Orders", orderService.findAllOrders());
+            data.put("orders", orderService.findAllOrders());
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -85,20 +86,17 @@ public class OrderController {
                 );
             } catch (Exception e) {
                 logger.info(e.getMessage());
-                throw e;
             }
-        } else {
-            return ResponseEntity.ok(
-                    Response.builder()
-                            .timeStamp(now())
-                            .status(HttpStatus.BAD_REQUEST)
-                            .statusCode(HttpStatus.BAD_REQUEST.value())
-                            .message("No order found")
-                            .data(of())
-                            .build()
-            );
         }
-
+        return ResponseEntity.ok(
+                Response.builder()
+                        .timeStamp(now())
+                        .status(HttpStatus.BAD_REQUEST)
+                        .statusCode(HttpStatus.BAD_REQUEST.value())
+                        .message("No order found")
+                        .data(of())
+                        .build()
+        );
     }
 
     @GetMapping("/list/{id}/products")
@@ -137,21 +135,27 @@ public class OrderController {
     }
 
 
-    @GetMapping("/list/agent-name/{agentName}")
-    public ResponseEntity<Response> getOrdersForAnAgent(@PathVariable String agentName) {
-        logger.info("Retrieving all orders of " + agentName);
+    @GetMapping("/list/agent/{agentId}")
+    public ResponseEntity<Response> getOrdersForAnAgent(@PathVariable String agentId) {
+
+        Agent agent = null;
+        if (agentId != null) {
+            agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+            logger.info("Retrieving all orders of " + agent.getAgentName());
+        }
 
         Map<String, List<Order>> data = new HashMap<>();
-        List<Order> orders = orderService.findAllOrdersByAgentName(agentName);
+        List<Order> orders = orderService.findAllOrdersByAgentId(agentId);
         String message = "";
         Integer orderCount = orders.size();
 
-        if (orders.size() > 0) {
-            message = orderCount == 1 ?
-                    (orderCount + " order has been retrieved for " + agentName + ".") :
-                    (orderCount + " orders have been retrieved for " + agentName + ".");
 
-            data.put("Orders", orders);
+        if (orderCount > 0 && agent != null) {
+            message = orderCount == 1 ?
+                    (orderCount + " order has been retrieved for " + agent.getAgentName() + ".") :
+                    (orderCount + " orders have been retrieved for " + agent.getAgentName() + ".");
+
+            data.put("orders", orders);
 
             return ResponseEntity.ok(
                     Response.builder()
@@ -166,7 +170,7 @@ public class OrderController {
         return ResponseEntity.ok(
                 Response.builder()
                         .timeStamp(now())
-                        .message("No orders found for " + agentName)
+                        .message("No orders found for " + agent.getAgentName())
                         .status(HttpStatus.NOT_FOUND)
                         .statusCode(HttpStatus.NOT_FOUND.value())
                         .data(of())

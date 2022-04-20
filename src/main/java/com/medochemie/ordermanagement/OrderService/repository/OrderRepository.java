@@ -23,8 +23,8 @@ public interface OrderRepository extends MongoRepository<Order, String> {
     @Query(value="{ '_id' : ?0 }")
     List<Product> findProductsForOrder(String _id);
 
-    @Query(value="{ 'agent.agentName' : ?0 }")
-    List<Order> findByAgentName(String agentName);
+    @Query(value="{ 'agentId' : ?0 }")
+    List<Order> findOrderByAgentId(String agentId);
 
     default Map<String, Object> getAllOrdersInPage(int pageNo, int pageSize, String sortBy) {
         Map<String, Object> response = new HashMap<>();

@@ -60,8 +60,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<Order> findAllOrdersByAgentName(String agentName) {
-        return repository.findByAgentName(agentName);
+    public List<Order> findAllOrdersByAgentId(String agentId) {
+        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        if (agentId != null && agent != null) {
+            try {
+                return repository.findOrderByAgentId(agentId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+        return null;
     }
 
     @Override
@@ -69,10 +77,11 @@ public class OrderServiceImpl implements OrderService {
         Order newOrder = order;
         Order orderFromDB = null;
         Integer currentYear = Calendar.getInstance().get(Calendar.YEAR);
-        Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
-
+        Agent agent = null;
+        if (agentId != null) {
+            agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        }
         logger.info(String.format("Printing agent from OrderService class %s", agent.getAgentName()));
-
         List<ProductIdsWithQuantity> productIdsWithQuantities = null;
         Double total = 0D;
 
