@@ -10,6 +10,7 @@ import com.medochemie.ordermanagement.OrderService.entity.Response;
 import com.medochemie.ordermanagement.OrderService.enums.Status;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
+import org.apache.commons.lang.BooleanUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,12 +57,17 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<Order> findAllOrders() {
+        logger.info("Returning all orders");
         return repository.findAll();
     }
 
     @Override
     public List<Order> findAllOrdersByAgentId(String agentId) {
         Agent agent = restTemplate.getForObject(agentUrl + agentId, Agent.class);
+        logger.info("Returning all orders for of {}", agent.getAgentName());
+//        if (BooleanUtils.isFalse(6>7)){
+//
+//        }
         if (agentId != null && agent != null) {
             try {
                 return repository.findOrderByAgentId(agentId);
@@ -110,8 +116,8 @@ public class OrderServiceImpl implements OrderService {
                 order.setStatus(Status.Draft);
                 order.setCreatedBy("Logged in user - get from UI");
 
-                String totalAmount = decimalFormat.format(total);
-                System.out.println(totalAmount);
+//                String totalAmount = decimalFormat.format(total);
+//                System.out.println(totalAmount);
             } catch (Exception e) {
                 order.setId(null);
                 order.setOrderNumber(newOrder.getOrderNumber());
@@ -188,6 +194,7 @@ public class OrderServiceImpl implements OrderService {
         try {
             orderSequenceId = mongoTemplate.findAndModify(query, update, OrderSequenceId.class);
         } catch (Exception e) {
+            throw e;
         }
         String orderRef = "";
         orderRef = agentCode + StringUtils.leftPad(Long.toString(orderSequenceId.getSequence()), 3, "0");

@@ -1,9 +1,10 @@
 package com.medochemie.ordermanagement.OrderService.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.medochemie.ordermanagement.OrderService.entity.Agent;
 import com.medochemie.ordermanagement.OrderService.entity.Order;
 import com.medochemie.ordermanagement.OrderService.entity.Response;
+import com.medochemie.ordermanagement.OrderService.enums.Status;
 import com.medochemie.ordermanagement.OrderService.exception.ApiRequestException;
 import com.medochemie.ordermanagement.OrderService.repository.OrderRepository;
 import com.medochemie.ordermanagement.OrderService.service.OrderService;
@@ -23,14 +24,14 @@ import static java.time.LocalDateTime.now;
 
 @RestController
 @RequestMapping("/api/v1/orders")
-@CrossOrigin(origins = {"http://localhost:4200/", "http://localhost:3000/"})
+@CrossOrigin(origins = {"http://localhost:4200/", "http://localhost:3000/", "http://localhost:3001/"})
 public class OrderController {
 
     private final static Logger logger = LoggerFactory.getLogger(Order.class);
 
     final String agentUrl = "http://MC-AGENT-SERVICE/api/v1/agents/list/";
 
-    ObjectMapper mapper = new ObjectMapper();
+//    ObjectMapper mapper = new ObjectMapper();
 
     @Autowired
     RestTemplate restTemplate;
@@ -154,9 +155,9 @@ public class OrderController {
             message = orderCount == 1 ?
                     (orderCount + " order has been retrieved for " + agent.getAgentName() + ".") :
                     (orderCount + " orders have been retrieved for " + agent.getAgentName() + ".");
-
             data.put("orders", orders);
-
+        }
+        try {
             return ResponseEntity.ok(
                     Response.builder()
                             .timeStamp(now())
@@ -166,16 +167,18 @@ public class OrderController {
                             .data(data)
                             .build()
             );
+        } catch (Exception e) {
+            return ResponseEntity.ok(
+                    Response.builder()
+                            .timeStamp(now())
+                            .message(e.getMessage())
+                            .status(HttpStatus.NOT_FOUND)
+                            .statusCode(HttpStatus.NOT_FOUND.value())
+                            .data(of())
+                            .build()
+            );
         }
-        return ResponseEntity.ok(
-                Response.builder()
-                        .timeStamp(now())
-                        .message("No orders found for " + agent.getAgentName())
-                        .status(HttpStatus.NOT_FOUND)
-                        .statusCode(HttpStatus.NOT_FOUND.value())
-                        .data(of())
-                        .build()
-        );
+
     }
 
 
@@ -202,6 +205,7 @@ public class OrderController {
 
         Agent agent = null;
         try {
+            order.setStatus(Status.Under_Review);
             order = orderService.createOrder(order, agentId);
 
             // this agent object was created to check if Active or not.
