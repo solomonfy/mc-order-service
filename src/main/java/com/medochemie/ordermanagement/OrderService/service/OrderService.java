@@ -12,7 +12,6 @@ public interface OrderService {
     Order findOrderById(String id);
     Order findOrderByOrderNumber(String orderNumber);
     List<Product> findProductsForOrder(String id);
-    Order updateOrder(String id);
-    String deleteOrder(String id);
-//    String getOrderRefNo(String orderNumber);
+    boolean updateOrder(String id, Order order);
+    boolean deleteOrder(String id);
 }

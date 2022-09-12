@@ -169,18 +169,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public Order updateOrder(String id) {
-        Order order = repository.findById(id).get();
-        return repository.save(order);
+    public boolean updateOrder(String id, Order order) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("_id").is(order.getId()));
+        Update update = new Update();
+        update.set("status", order.getStatus());
+        // do all properties
+
+        return mongoTemplate.updateFirst(query, update, Order.class).wasAcknowledged();
     }
 
     @Override
-    public String deleteOrder(String id) {
-        Order existingOrder = repository.findById(id).get();
-        if (id != null && existingOrder != null) {
-            repository.deleteById(id);
-        }
-        return "Order with id - " + id + " has been deleted";
+    public boolean deleteOrder(String id) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("_id").is(id));
+        return mongoTemplate.remove(query, Order.class).wasAcknowledged();
     }
 
 
